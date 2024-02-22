@@ -1,4 +1,4 @@
-import base64
+import base64  # Модуль с функциями кодирования и декодирования base64
 
 from django.core.files.base import ContentFile
 from rest_framework import serializers
@@ -13,6 +13,7 @@ from .models import Achievement, AchievementCat, Cat
 class Hex2NameColor(serializers.Field):
     def to_representation(self, value):
         return value
+
     def to_internal_value(self, data):
         try:
             data = webcolors.hex_to_name(data)
@@ -30,11 +31,19 @@ class AchievementSerializer(serializers.ModelSerializer):
 
 
 class Base64ImageField(serializers.ImageField):
+    # В общем виде формат выглядит следующим образом:
+    # data:image/png;base64,<data>
     def to_internal_value(self, data):
+        # Если полученный объект строка, и эта строка
+        # начинается с 'data:image'...
         if isinstance(data, str) and data.startswith('data:image'):
+            # ...начинаем декодировать изображение из base64.
+            # Сначала нужно разделить строку на части.
             format, imgstr = data.split(';base64,')
+            # И извлечь расширение файла.
             ext = format.split('/')[-1]
-
+            # Затем декодировать сами данные и поместить результат в файл,
+            # которому дать название по шаблону.
             data = ContentFile(base64.b64decode(imgstr), name='temp.' + ext)
 
         return super().to_internal_value(data)
@@ -44,19 +53,20 @@ class CatSerializer(serializers.ModelSerializer):
     achievements = AchievementSerializer(required=False, many=True)
     color = Hex2NameColor()
     age = serializers.SerializerMethodField()
+    # Вот оно — новое поле для изображений.
     image = Base64ImageField(required=False, allow_null=True)
-    
+
     class Meta:
         model = Cat
         fields = (
-            'id', 'name', 'color', 'birth_year', 'achievements', 'owner', 'age',
-            'image'
+            'id', 'name', 'color', 'birth_year', 'achievements', 'owner',
+            'age', 'image'
             )
         read_only_fields = ('owner',)
 
     def get_age(self, obj):
         return dt.datetime.now().year - obj.birth_year
-    
+
     def create(self, validated_data):
         if 'achievements' not in self.initial_data:
             cat = Cat.objects.create(**validated_data)
@@ -65,14 +75,14 @@ class CatSerializer(serializers.ModelSerializer):
             achievements = validated_data.pop('achievements')
             cat = Cat.objects.create(**validated_data)
             for achievement in achievements:
-                current_achievement, status = Achievement.objects.get_or_create(
-                    **achievement
-                    )
+                current_achievement, status = (
+                    Achievement.objects.get_or_create(**achievement)
+                )
                 AchievementCat.objects.create(
                     achievement=current_achievement, cat=cat
                     )
             return cat
-    
+
     def update(self, instance, validated_data):
         instance.name = validated_data.get('name', instance.name)
         instance.color = validated_data.get('color', instance.color)
@@ -84,9 +94,9 @@ class CatSerializer(serializers.ModelSerializer):
             achievements_data = validated_data.pop('achievements')
             lst = []
             for achievement in achievements_data:
-                current_achievement, status = Achievement.objects.get_or_create(
-                    **achievement
-                    )
+                current_achievement, status = (
+                    Achievement.objects.get_or_create(**achievement)
+                )
                 lst.append(current_achievement)
             instance.achievements.set(lst)
 
